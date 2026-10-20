@@ -1,0 +1,65 @@
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+clouds.yaml
+clouds.yml
+passwords.yml
+admin-openrc*
+*-openrc.sh
+wireguard*.conf
+wg*.conf
+
+# Terraform state and plans can contain wallet and WireGuard secrets
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+crash.log
+crash.*.log
+terraform.rc
+.terraformrc
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Runtime data and deployment evidence; commit sanitized reports deliberately
+data/
+backups/
+reports/
+inventory.local*
+globals.local.yml
+*.log
+*.sqlite*
+
+# Python and JavaScript development
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+node_modules/
+dist/
+build/
+coverage/
+.next/
+.vite/
+
+# Editor and operating system state
+.idea/
+.vscode/
+Thumbs.db
+.DS_Store
