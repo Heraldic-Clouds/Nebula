@@ -1,0 +1,14 @@
+# Copy to an ignored *.tfvars file. Replace IDs, image and checksum with verified values.
+# This example cannot deploy as written; no actual nodes or image digest were selected.
+grid_network = "main"
+ssh_public_key = "ssh-ed25519 REPLACE_WITH_YOUR_PUBLIC_KEY"
+ubuntu_flist = "https://hub.grid.tf/REPLACE_WITH_VERIFIED_UBUNTU_24_04_FULL_VM.flist"
+ubuntu_flist_checksum = "REPLACE_WITH_REAL_CHECKSUM"
+controllers = {
+  one = { node_id = 0, cpu = 4, memory_mb = 16384, disk_gb = 100, public_ipv4 = false }
+  # two = { node_id = 0 }
+  # three = { node_id = 0 }
+}
+computes = {
+  one = { node_id = 0, cpu = 8, memory_mb = 32768, disk_gb = 200 }
+}

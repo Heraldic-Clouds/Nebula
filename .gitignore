@@ -27,6 +27,7 @@ crash.log
 crash.*.log
 terraform.rc
 .terraformrc
+infra/terraform/state.json
 override.tf
 override.tf.json
 *_override.tf
@@ -57,6 +58,9 @@ build/
 coverage/
 .next/
 .vite/
+.runtime/
+*.egg-info/
+apps/dashboard/tsconfig.tsbuildinfo
 
 # Editor and operating system state
 .idea/

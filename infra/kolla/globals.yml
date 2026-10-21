@@ -1,0 +1,21 @@
+---
+kolla_base_distro: ubuntu
+openstack_release: "2026.1"
+kolla_container_engine: docker
+enable_keystone: true
+enable_glance: true
+enable_nova: true
+enable_neutron: true
+enable_horizon: true
+enable_placement: true
+enable_cinder: false
+enable_central_logging: false
+neutron_plugin_agent: openvswitch
+neutron_type_drivers: "flat,vxlan"
+neutron_tenant_network_types: "vxlan"
+neutron_bridge_name: "br-ex"
+nova_compute_virt_type: kvm
+# Pilot: services bind to one controller's existing private IP; no VRRP over WireGuard.
+enable_haproxy: false
+enable_keepalived: false
+# Overlay MTU is emitted through supported neutron.conf/ml2_conf.ini overrides.

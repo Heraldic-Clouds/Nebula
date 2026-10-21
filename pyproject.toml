@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nebula-cloud"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi==0.156.4", "uvicorn[standard]==0.54.0", "SQLAlchemy==2.1.5",
+  "psycopg[binary]==3.3.6", "alembic==1.20.0", "openstacksdk==4.21.0",
+  "stripe==16.0.0", "pydantic-settings==2.16.1", "argon2-cffi==25.1.0",
+  "cryptography==50.0.2", "httpx==0.28.1", "PyYAML==6.0.3", "email-validator==2.3.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest==9.1.1", "respx==0.23.1"]
+
+[project.scripts]
+nebula = "nebula.cli:main"
+nebula-worker = "nebula.worker:main"
+
+[tool.setuptools.packages.find]
+where = ["services/api"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["postgres: requires NEBULA_TEST_DATABASE_URL with a disposable PostgreSQL database", "live: requires explicitly configured live infrastructure"]

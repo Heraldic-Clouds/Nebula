@@ -1,0 +1,24 @@
+---
+- name: Validate required host capabilities and durable reboot evidence
+  hosts: baremetal
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Require explicit persistence phase
+      ansible.builtin.assert:
+        that: storage_mode in ['write', 'verify']
+        fail_msg: Run write once, reboot hosts, then verify. Missing evidence blocks deployment.
+    - name: Run host checks and retain report even on failure
+      ansible.builtin.command:
+        argv: "{{ ['/usr/local/sbin/nebula-preflight', '--role', nebula_role, '--management-interface', network_interface, '--storage-mode', storage_mode, '--storage-path', '/var/lib/docker'] + (['--external-interface', neutron_external_interface] if nebula_role == 'control' else []) + (['--development-tcg'] if nebula_development_tcg | default(false) | bool else []) + nebula_peer_args }}"
+      register: preflight_result
+      changed_when: storage_mode == 'write'
+      failed_when: false
+    - name: Fetch evidence
+      ansible.builtin.fetch:
+        src: /var/tmp/nebula-preflight.json
+        dest: ../../reports/preflight/
+    - name: Stop on unverified capability
+      ansible.builtin.assert:
+        that: preflight_result.rc == 0
+        fail_msg: "{{ preflight_result.stdout }}"

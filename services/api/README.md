@@ -1,7 +1,7 @@
 # Nebula backend boundary
 
-Implementation is pending. Build a Python/FastAPI modular backend using the [architecture](../../docs/architecture.md) and [API contract](../../docs/product.md).
+Implemented in `nebula/`: FastAPI sessions/CSRF, encrypted project credentials, real OpenStack SDK operations, PostgreSQL-backed worker, prepaid Stripe test credit, usage settlement and read-only PeopleWelcome support. See the [root README](../../README.md#get-started) for executable setup/binding/operation commands.
 
-Planned modules: `auth`, `organizations`, `projects`, `catalog`, `instances`, `networks`, `ssh_keys`, `operations`, `openstack`, `billing`, `metering`, `assistant`, and `audit`. Keep HTTP routes thin; share authorization/admission services between UI and assistant actions. Run durable operation and metering workers as separate processes using PostgreSQL jobs/outbox.
+This minimum pilot uses one operator-created customer and scoped Keystone project per account. Public registration and multi-member organizations remain unimplemented. The worker runs separately with `nebula-worker`; no mock provider is installed in runtime code.
 
-Introduce pinned dependencies, migrations, Docker image, startup commands, and integration tests together. Do not add a fake OpenStack success path as the default runtime.
+Tests live under `tests/` and use real PostgreSQL with explicitly isolated provider doubles. No live OpenStack or PeopleWelcome verification has run without credentials.

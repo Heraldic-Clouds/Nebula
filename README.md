@@ -8,9 +8,11 @@ OpenStack manages customer infrastructure. ThreeFold supplies the underlying cap
 
 ## Project status
 
-**Design and repository foundation. No cloud has been deployed.**
+**Pilot implementation. No live ThreeFold/OpenStack cloud has been deployed or verified.**
 
-This initial revision turns the [original project brief](docs/brief.md) into an application design, component boundaries, API contract, operating plan, and staged delivery backlog. The backend, dashboard, Terraform resources, Kolla configuration, database migrations, payment integration, and assistant adapter are planned implementation work. Their directories contain implementation guidance, not running services.
+The repository now includes pinned ThreeFold Terraform resources, Kolla-Ansible deployment wrappers, automated Linux preflight checks, a FastAPI/OpenStack backend, a React dashboard, PostgreSQL migrations, durable VM operations, Stripe test Checkout/webhooks, hourly usage settlement, a read-only PeopleWelcome adapter, Docker Compose, and automated tests. The existing architecture documents remain the design reference; source code and the commands below describe the implemented pilot.
+
+Locally verified: Terraform provider initialization/schema validation, dashboard production build, PostgreSQL migrations and transaction tests, API/login/tenant-isolation checks, billing idempotency/concurrency, Stripe signature verification, worker lifecycle tests, and browser login/error states. Provider responses in automated tests are explicitly test doubles; no sandbox payment, live VM, or live AI response is claimed.
 
 ThreeFold nested KVM, persistent disks, required network privileges, and Neutron external networking remain unverified. A successful OpenStack installation alone does not meet the MVP acceptance criteria: Nebula must launch and connect to a real customer VM, meter it, and inspect it through PeopleWelcome.
 
@@ -58,7 +60,7 @@ flowchart TB
 
 The production runtime, including Nebula's API, database, workers, dashboard hosting, and OpenStack nodes, is intended to reside on ThreeFold. Stripe and PeopleWelcome are external APIs required by the brief. GitHub hosts source and CI; CI must not become the runtime. No AWS, Azure, GCP, or privately hosted runtime is part of this design.
 
-## Planned technology
+## Technology
 
 | Layer | Design choice |
 | --- | --- |
@@ -71,7 +73,7 @@ The production runtime, including Nebula's API, database, workers, dashboard hos
 | Assistant | PeopleWelcome adapter, server-side tool gateway, scoped Keystone credentials |
 | Delivery | GitHub Actions for checks; operator-approved infrastructure changes |
 
-These application choices are design decisions, not installed dependencies. Implementation must pin supported tool and SDK versions and verify provider schemas before deployment.
+Application dependencies are pinned in `pyproject.toml` and the dashboard lock file. Terraform pins Grid provider 1.11.6; Kolla dependencies pin an exact upstream 2026.1 revision. No infrastructure deployment or Terraform apply runs in CI.
 
 ## Repository
 
@@ -100,19 +102,99 @@ nebula/
 
 ## Get started
 
-Clone the repository and read the implementation sequence:
+Requires Python 3.12+, Node 24/pnpm 10.11, Docker Engine/Compose, and Terraform 1.7+. Kolla must run on Linux. From this checkout:
 
-```powershell
-git clone https://github.com/Heraldic-Clouds/Nebula.git nebula
-cd nebula
-Get-Content README.md
-Get-Content docs/roadmap.md
-Copy-Item .env.example .env
+```bash
+python -m pip install -e '.[test]'
+nebula init-env
+docker compose up --build -d
+docker compose exec api nebula create-customer --email customer@example.com
 ```
 
-Copy `.env.example` only when preparing a local development environment. Keep `.env` private and supply real configuration through local environment variables or an operator-controlled secret store. The template is not a configured application.
+`init-env` creates a private `.env` with a fresh encryption key and database password without printing them. The account command prompts for a password and grants neither credit nor provider access. Open `http://localhost:8080`. Public deployment must use the TLS overlay, `NEBULA_COOKIE_SECURE=true`, a valid HTTPS `NEBULA_PUBLIC_URL`, and real certificate/key paths:
 
-Start with the [infrastructure compatibility gate](docs/infrastructure.md), then implement the [backend and customer flows](docs/product.md). The [operating plan](docs/operations.md) distinguishes future deployment commands from what exists today. There is no application start command or deployable Docker Compose stack in this design revision.
+```bash
+python scripts/deploy_app.py --production
+```
+
+Run that command on approved ThreeFold capacity, not another hosting provider. The initial private pilot may share the controller; public service needs the isolation and operational qualification specified in the existing design.
+
+### ThreeFold provisioning and OpenStack
+
+```bash
+terraform -chdir=infra/terraform init
+terraform -chdir=infra/terraform validate
+# Supply actual selected node IDs, verified Ubuntu full-VM flist/checksum and public SSH key.
+# Export TF_VAR_mnemonic privately. No actual nodes/image checksum were selected by this task.
+terraform -chdir=infra/terraform plan -var-file=pilot.tfvars -out=approved.tfplan
+```
+
+Do not apply until the selected nodes, actual quote, duration and exact plan have explicit approval. The apply wrapper requires the saved plan's SHA-256 plus the approval/budget reference:
+
+```bash
+python scripts/terraform_apply.py infra/terraform/approved.tfplan --approve-plan-sha256 APPROVED_DIGEST --approved-budget 'APPROVAL_REFERENCE_AND_BUDGET'
+mkdir -p .runtime
+terraform -chdir=infra/terraform output -json hosts > .runtime/hosts.json
+```
+
+Connect the operator's WireGuard interface using the sensitive `wireguard_config` output, keeping it out of logs/Git. In a Linux virtual environment, install `infra/kolla/requirements.txt`. Render the **complete installed upstream inventory** with real interface names:
+
+```bash
+python scripts/render_inventory.py --hosts .runtime/hosts.json --template .venv-kolla/share/kolla-ansible/ansible/inventory/multinode --management-interface VERIFIED_INTERFACE --external-interface VERIFIED_EXTERNAL_INTERFACE --private-key ~/.ssh/nebula
+python scripts/deploy_openstack.py prepare
+python scripts/deploy_openstack.py write-marker
+# write-marker deliberately fails with PERSISTENCE_PENDING until a reboot proves persistence.
+python scripts/deploy_openstack.py reboot
+python scripts/deploy_openstack.py preflight
+python scripts/deploy_openstack.py deploy --external-network-evidence .runtime/external-network-evidence.json
+```
+
+The external-network evidence JSON must contain `approved_by`, `approved_at`, `provider_subnet`, `return_route`, `recovery_access`, and the generated inventory's `inventory_sha256`. This is an explicit operator qualification gate, not automatic proof of Neutron support. `--transport-mtu` configures the measured private transport MTU. Use `--development-tcg` only for an isolated development experiment; it never silently replaces KVM. Three-controller inventories require a separately qualified HA endpoint.
+
+After Kolla deployment, use `python scripts/openstack_smoke.py --help` for the actual guest boot/SSH/connectivity test. It requires explicit `--approve-guest-create`, an existing tenant network, image, flavor, SSH key and trusted guest host key. It removes its test VM afterward. Horizon success alone does not pass this test.
+
+### Bind a customer and enable the pilot
+
+On the operator host, `scripts/bootstrap_customer.py` creates a Keystone customer/project, private subnet/router, an explicitly scoped SSH ingress rule and a scoped application credential. Supply approved existing image/flavor/external-network IDs, a trusted `--ssh-cidr`, a private `.runtime/customer` output directory, and `--approve-project-create`. It creates no VM or public IP.
+
+```bash
+python scripts/bootstrap_customer.py --help
+docker compose cp .runtime/customer/catalog.json api:/tmp/customer-catalog.json
+cat .runtime/customer/credentials.json | docker compose exec -T api nebula bind-project --email customer@example.com --catalog /tmp/customer-catalog.json --credentials-stdin
+# Example TEST rates in micro-USD; choose operator-approved rates before offering service.
+docker compose exec api nebula rates --cpu-micro-usd 10000 --ram-gb-micro-usd 1000 --storage-gb-month-micro-usd 100000
+docker compose exec worker nebula-worker --once
+```
+
+The binding command verifies live Keystone scope and the catalog before encrypting the credentials in PostgreSQL. Use a verified Ubuntu image; no image download/checksum is fabricated. The dashboard can add customer SSH public keys. Initial quotas and lifetime spending limits are configurable. Set `NEBULA_PROVISIONING_ENABLED=true` and recreate API/worker containers only after infrastructure approval, a passing smoke test, rates, credit and fresh collection.
+
+### Stripe and PeopleWelcome
+
+Set `NEBULA_STRIPE_API_KEY` to a restricted sandbox/test key and `NEBULA_STRIPE_WEBHOOK_SECRET` to the endpoint/CLI signing secret. Forward `checkout.session.completed` and `checkout.session.async_payment_succeeded` to `/api/v1/webhooks/stripe`; when the Stripe CLI is available:
+
+```bash
+stripe listen --events checkout.session.completed,checkout.session.async_payment_succeeded --forward-to localhost:8080/api/v1/webhooks/stripe
+```
+
+Checkout grants credit only from verified, paid, amount/currency/ownership-matched sessions. Browser redirects grant none. Live keys/events are rejected. Settlement covers observed Nebula-managed CPU, RAM and root-disk allocations hourly and conservatively through the last confirmed presence at deletion. Unattached volumes/IPs, refunds/disputes, and notification-based exact lifecycle accounting are not implemented; this is not ready for live-money billing. Unknown provider resources or out-of-band resize block new admission.
+
+The selected PeopleWelcome model is **`gpt-6-luna`**. The supplied developer URL, `https://peopl.ewelco.me/developer`, timed out during this implementation. Configure its exact documented HTTPS chat endpoint, API key, and `NEBULA_PEOPLEWELCOME_PROTOCOL=openai-chat-completions` only after compatibility is verified. The adapter sends requests to that configured endpoint, never another AI provider. Only read-only project inspection tools are enabled; creation/deletion is explicitly confirmed in the dashboard.
+
+### Checks and operation
+
+```bash
+# Must be a disposable PostgreSQL database with a name ending in _test.
+NEBULA_TEST_DATABASE_URL=postgresql+psycopg://USER:PASSWORD@localhost/nebula_test python -m pytest -q
+pnpm --dir apps/dashboard install --frozen-lockfile
+pnpm --dir apps/dashboard build
+terraform -chdir=infra/terraform fmt -check -recursive
+terraform -chdir=infra/terraform validate
+docker compose logs --tail=100 api worker
+docker compose exec worker nebula-worker --once
+docker compose exec api nebula reconcile-operation OPERATION_ID
+```
+
+Ambiguous creates require operator reconciliation and never blindly repeat a Nova create. Operation failures keep conservative reservations until the actual remote allocation is resolved/deleted. Registration, multi-member organizations, refunds, exact notification-based metering, and assistant mutation confirmations remain outside this minimum pilot. No new planning documents replace the original architecture.
 
 ## Deployment gates
 

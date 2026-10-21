@@ -1,0 +1,50 @@
+services:
+  postgres:
+    image: postgres:18.3-bookworm
+    environment:
+      POSTGRES_USER: nebula
+      POSTGRES_DB: nebula
+      POSTGRES_PASSWORD: ${NEBULA_DB_PASSWORD:?Run nebula init-env first}
+    volumes:
+      - nebula_database:/var/lib/postgresql
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U nebula -d nebula']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  migrate:
+    build: .
+    env_file: .env
+    command: [nebula, migrate]
+    depends_on:
+      postgres:
+        condition: service_healthy
+  api:
+    build: .
+    env_file: .env
+    volumes:
+      - ./.runtime/ca:/app/ca:ro
+    ports:
+      - '127.0.0.1:8080:8080'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/v1/health/ready')"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+  worker:
+    build: .
+    env_file: .env
+    volumes:
+      - ./.runtime/ca:/app/ca:ro
+    command: [nebula-worker]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+volumes:
+  nebula_database:

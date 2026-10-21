@@ -1,0 +1,4 @@
+# Deployment host must run Linux/Python 3.12; pin the exact audited upstream revision.
+git+https://opendev.org/openstack/kolla-ansible@15ce36696a21356eb59abb4473e210f13cf7c98c
+ansible-core==2.19.3
+python-openstackclient==10.4.0

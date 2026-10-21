@@ -1,0 +1,24 @@
+---
+- name: Prepare approved ThreeFold hosts for automated preflight
+  hosts: baremetal
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Require supported host OS
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.distribution == 'Ubuntu'
+          - ansible_facts.distribution_version == '24.04'
+    - name: Install preflight tooling
+      ansible.builtin.apt:
+        name: [python3, qemu-system-x86, iproute2, iputils-ping, openvswitch-switch, iptables, kmod, util-linux]
+        update_cache: true
+    - name: Start OVS for the bridge privilege exercise
+      ansible.builtin.service:
+        name: openvswitch-switch
+        state: started
+    - name: Install the actual preflight executable
+      ansible.builtin.copy:
+        src: ../../scripts/preflight.py
+        dest: /usr/local/sbin/nebula-preflight
+        mode: '0755'

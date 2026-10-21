@@ -1,7 +1,7 @@
 # ThreeFold Terraform boundary
 
-No Terraform resources are implemented yet. Use only the `threefoldtech/grid` provider for the required runtime. Follow the [infrastructure design](../../docs/infrastructure.md).
+Implemented Grid provider 1.11.6 resources for full-VM controller/compute hosts, persistent boot disks, a WireGuard network and sanitized inventory outputs. See the [root README](../../README.md#threefold-provisioning-and-openstack) for init/plan and explicitly approved saved-plan application.
 
-Deliver a minimal preflight environment first, then a cloud-node environment accepting stable controller/compute maps. Support one controller initially and a three-controller configuration for qualified expansion. Pin the provider and image references, commit the dependency lock file, and generate only sanitized inventory inputs.
+The controller map accepts one or three entries; the compute map may be empty for an initial approved single-VM probe. Full cloud inventory generation requires at least one compute host. No real node IDs, image digest, wallet, quote or compatibility evidence has been supplied. Initialization and schema validation passed locally; no plan or apply ran.
 
 Use operator-supplied secrets; never embed wallet mnemonics, WireGuard private keys, plans, or state in Git. Obtain explicit approval for the selected resources, quote and duration before any billable apply. No automatic purchase/apply workflow belongs in pull-request CI.
