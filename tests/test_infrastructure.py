@@ -46,3 +46,14 @@ def test_apply_and_smoke_require_explicit_approval(tmp_path):
     assert result.returncode!=0 and '--approve-plan-sha256' in result.stderr
     result=subprocess.run([sys.executable,str(ROOT/'scripts/openstack_smoke.py'),'--cloud','test','--image','ubuntu','--flavor','small','--network','private','--key-name','key','--ssh-private-key','private'],capture_output=True,text=True)
     assert result.returncode!=0 and '--approve-guest-create' in result.stderr
+
+
+def test_smoke_guest_host_key_is_pinned_to_cloud_init():
+    import base64,yaml
+    from cryptography.hazmat.primitives.serialization import load_ssh_private_key,Encoding,PublicFormat
+    encoded,public=module('openstack_smoke').guest_host_key()
+    config=yaml.safe_load(base64.b64decode(encoded))
+    private=load_ssh_private_key(config['ssh_keys']['ed25519_private'].encode(),password=None)
+    assert private.public_key().public_bytes(Encoding.OpenSSH,PublicFormat.OpenSSH).decode()==public
+    assert config['ssh_keys']['ed25519_public']==public
+    assert config['ssh_deletekeys'] is True

@@ -151,7 +151,7 @@ python scripts/deploy_openstack.py deploy --external-network-evidence .runtime/e
 
 The external-network evidence JSON must contain `approved_by`, `approved_at`, `provider_subnet`, `return_route`, `recovery_access`, and the generated inventory's `inventory_sha256`. This is an explicit operator qualification gate, not automatic proof of Neutron support. `--transport-mtu` configures the measured private transport MTU. Use `--development-tcg` only for an isolated development experiment; it never silently replaces KVM. Three-controller inventories require a separately qualified HA endpoint.
 
-After Kolla deployment, use `python scripts/openstack_smoke.py --help` for the actual guest boot/SSH/connectivity test. It requires explicit `--approve-guest-create`, an existing tenant network, image, flavor, SSH key and trusted guest host key. It removes its test VM afterward. Horizon success alone does not pass this test.
+After Kolla deployment, use `python scripts/openstack_smoke.py --help` for the actual guest boot/SSH/connectivity test. It requires explicit `--approve-guest-create`, an existing tenant network, image, flavor and SSH key. It supplies a fresh guest SSH host key through cloud-init and pins that key for strict host verification. It removes its test VM afterward and records the provider ID even if cleanup fails. Horizon success alone does not pass this test.
 
 ### Bind a customer and enable the pilot
 
