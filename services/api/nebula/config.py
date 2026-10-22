@@ -17,10 +17,8 @@ class Settings(BaseSettings):
     stripe_webhook_secret: str = ""
     stripe_api_version: str = "2026-09-30.endive"
     stripe_integration_id: str = "nebula_pilot_abcdefgh"
-    peoplewelcome_api_url: str = ""
-    peoplewelcome_api_key: str = ""
-    peoplewelcome_model: str = "gpt-6-luna"
-    peoplewelcome_protocol: str = ""
+    peoplewelcome_api_url: str = "https://peopl.ewelco.me"
+    peoplewelcome_issuer: str = "https://pplwlcm1-ysqkpd.us1.zitadel.cloud"
     dashboard_dist: str = "apps/dashboard/dist"
 
 

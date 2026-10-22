@@ -8,14 +8,15 @@ from typing import Annotated
 from argon2 import PasswordHasher
 from argon2.exceptions import VerificationError
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, SecretStr
 from sqlalchemy import select, func, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
-from . import payments
+from . import assistant as support, payments
 from .billing import active_rate, hourly
 from .cloud import Cloud
 from .config import settings
@@ -104,6 +105,12 @@ class TopupRequest(BaseModel):
 
 
 app = FastAPI(title="Nebula", version="0.1.0")
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(request, exc):
+    # Pydantic includes invalid input values by default, including pasted tokens.
+    return JSONResponse({"detail": [{"loc": e["loc"], "msg": e["msg"], "type": e["type"]} for e in exc.errors()]}, status_code=422)
 
 
 @app.exception_handler(Exception)
@@ -356,12 +363,44 @@ class Chat(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
 
 
-@app.post("/api/v1/assistant/messages")
-def assistant(body: Chat, user: Actor, db: DB):
-    from .assistant import answer
-    project = project_for(db, user)
-    record(db, user, "assistant_read", project_id=project.id)
-    return answer(db, user, project, body.message)
+class SupportConnection(BaseModel):
+    access_token: SecretStr = Field(min_length=10, max_length=16384)
+    ai_id: str | None = Field(default=None, min_length=1, max_length=128)
+
+
+@app.get("/api/v1/assistant/connection")
+def support_connection(user: Actor, db: DB):
+    return support.connection_view(db, user.id)
+
+
+@app.post("/api/v1/assistant/connection")
+def connect_support(body: SupportConnection, user: Actor):
+    access_token = body.access_token.get_secret_value()
+    if not all(33 <= ord(c) <= 126 for c in access_token):
+        raise HTTPException(422, "Access token must contain only visible ASCII characters")
+    return support.connect(user.id, access_token, body.ai_id)
+
+
+@app.delete("/api/v1/assistant/connection")
+def disconnect_support(user: Actor, db: DB):
+    return support.disconnect(db, user.id)
+
+
+@app.post("/api/v1/assistant/messages", status_code=202)
+def assistant(body: Chat, user: Actor, idempotency_key: Annotated[str, Header(min_length=8, max_length=100)]):
+    turn_id = support.prepare(user.id, body.message, idempotency_key)
+    return support.advance(user.id, turn_id, submit=True)
+
+
+@app.get("/api/v1/assistant/messages/{turn_id}")
+def support_turn(turn_id: str, user: Actor):
+    # GET only polls existing jobs; it never submits a model request.
+    return support.advance(user.id, turn_id)
+
+
+@app.post("/api/v1/assistant/messages/{turn_id}/resume", status_code=202)
+def resume_support(turn_id: str, user: Actor):
+    return support.advance(user.id, turn_id, submit=True)
 
 
 dist = Path(settings().dashboard_dist)

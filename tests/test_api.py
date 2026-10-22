@@ -24,7 +24,7 @@ def test_session_csrf_and_real_unconfigured_cloud(client):
     response=client.post('/api/v1/ssh-keys',json={"name":"key","public_key":"ssh-ed25519 test-public-key"},headers={"X-CSRF-Token":"forged"})
     assert response.status_code==403
     assert client.get('/api/v1/catalog').status_code==503
-    assert client.post('/api/v1/assistant/messages',json={"message":"Show my usage"}).status_code==503
+    assert client.post('/api/v1/assistant/messages',json={"message":"Show my usage"},headers={"Idempotency-Key":"unconfigured-support"}).status_code==503
     assert client.post('/api/v1/auth/logout').status_code==200
     assert client.get('/api/v1/me').status_code==401
 

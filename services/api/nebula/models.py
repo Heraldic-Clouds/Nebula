@@ -159,3 +159,36 @@ class Audit(Base):
     action: Mapped[str] = mapped_column(String(64))
     detail: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class PeopleWelcomeConnection(Base):
+    __tablename__ = "peoplewelcome_connections"
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    issuer: Mapped[str] = mapped_column(String(512))
+    subject: Mapped[str] = mapped_column(String(256))
+    credential: Mapped[str] = mapped_column(Text)
+    ai_id: Mapped[str] = mapped_column(String(128))
+    ai_name: Mapped[str] = mapped_column(String(256))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    # Retained on disconnect: reusing an account would expose conversation history.
+    __table_args__ = (UniqueConstraint("issuer", "subject", name="peoplewelcome_account_owner"),)
+
+
+class AssistantTurn(Base):
+    __tablename__ = "assistant_turns"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    key: Mapped[str] = mapped_column(String(100))
+    request_hash: Mapped[str] = mapped_column(String(64))
+    ai_id: Mapped[str] = mapped_column(String(128))
+    message: Mapped[str] = mapped_column(Text)
+    payload: Mapped[dict] = mapped_column(JSON)
+    baseline: Mapped[list] = mapped_column(JSON)
+    job_id: Mapped[str | None] = mapped_column(String(128))
+    conversation_id: Mapped[str | None] = mapped_column(String(128))
+    status: Mapped[str] = mapped_column(String(32), default="prepared")
+    replies: Mapped[list] = mapped_column(JSON, default=list)
+    observed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    next_poll_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    __table_args__ = (UniqueConstraint("user_id", "key", name="assistant_idempotency"),)
