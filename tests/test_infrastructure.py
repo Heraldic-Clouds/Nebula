@@ -35,10 +35,24 @@ def test_three_controllers_require_qualified_endpoint(tmp_path):
 def test_preflight_fails_on_non_linux_without_fabricating_success(tmp_path,monkeypatch):
     mod=module('preflight');monkeypatch.setattr(mod.platform,'system',lambda:'Windows')
     out=tmp_path/'report.json'
-    result=mod.main(['--role','compute','--management-interface','wg0','--storage-mode','verify','--output',str(out)])
+    result=mod.main(['--role','compute','--management-interface','wg0','--expected-hostname','compute-one','--management-address','10.42.2.2','--storage-mode','verify','--output',str(out)])
     assert result==1
     report=json.loads(out.read_text())
     assert not report['passed'] and not report['nova_guest_verified']
+
+
+def test_inventory_rejects_ambiguous_host_identity(tmp_path):
+    hosts={'controller_one':{'role':'control','address':'10.42.1.2'},'compute_one':{'role':'compute','address':'10.42.1.2'}}
+    with pytest.raises(ValueError,match='unique'):
+        module('render_inventory').render(hosts,'unused',tmp_path,management_interface='eth0',external_interface='eth1',user='root',private_key='unused')
+
+
+def test_host_identity_rejects_loopback_resolution(monkeypatch):
+    mod=module('preflight')
+    monkeypatch.setattr(mod.socket,'gethostname',lambda:'compute-one')
+    monkeypatch.setattr(mod.socket,'getaddrinfo',lambda *args:[(2,1,6,'',('127.0.1.1',0))])
+    with pytest.raises(RuntimeError,match='resolve only'):
+        mod.check_host_identity('compute-one','10.42.2.2')
 
 
 def test_apply_and_smoke_require_explicit_approval(tmp_path):

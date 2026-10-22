@@ -2,6 +2,7 @@
 """Run on each Linux OpenStack host as root. Writes JSON and exits nonzero on any blocker."""
 import argparse
 import hashlib
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -92,10 +93,23 @@ def check_interface(name, external=False):
     return info
 
 
+def check_host_identity(expected_hostname, management_address):
+    actual = socket.gethostname().rstrip('.').lower()
+    if actual != expected_hostname:
+        raise RuntimeError(f"Hostname {actual} does not match assigned name {expected_hostname}")
+    addresses = {str(ipaddress.ip_address(item[4][0])) for item in socket.getaddrinfo(expected_hostname, None)}
+    expected = str(ipaddress.ip_address(management_address))
+    if addresses != {expected}:
+        raise RuntimeError(f"Hostname must resolve only to {expected}; observed {sorted(addresses)}")
+    return {"hostname": actual, "addresses": sorted(addresses)}
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--role", choices=["control", "compute"], required=True)
     parser.add_argument("--management-interface", required=True)
+    parser.add_argument("--expected-hostname", required=True)
+    parser.add_argument("--management-address", required=True)
     parser.add_argument("--external-interface")
     parser.add_argument("--peer", action="append", default=[])
     parser.add_argument("--management-mtu", type=int, default=1420)
@@ -120,6 +134,7 @@ def main(argv=None):
         return {"root": True}
     check("root", root)
     if report["checks"]["root"]["passed"]:
+        check("host_identity", lambda: check_host_identity(args.expected_hostname, args.management_address))
         check("management_interface", lambda: check_interface(args.management_interface))
         check("network_privileges", privilege_probe)
         check("persistent_storage", lambda: storage_probe(args.storage_path, args.storage_mode))

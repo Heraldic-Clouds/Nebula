@@ -9,6 +9,24 @@
         that:
           - ansible_facts.distribution == 'Ubuntu'
           - ansible_facts.distribution_version == '24.04'
+    - name: Preserve unique host identity across cloud-init reboots
+      ansible.builtin.copy:
+        dest: /etc/cloud/cloud.cfg.d/99-nebula-hostname.cfg
+        mode: '0644'
+        content: |
+          preserve_hostname: true
+          manage_etc_hosts: false
+    - name: Assign the inventory's unique DNS-safe hostname
+      ansible.builtin.hostname:
+        name: "{{ nebula_hostname }}"
+    - name: Resolve every cloud host through its private management address
+      ansible.builtin.blockinfile:
+        path: /etc/hosts
+        marker: '# {mark} NEBULA PRIVATE HOSTS'
+        block: |
+          {% for host in groups['baremetal'] | sort %}
+          {{ hostvars[host].ansible_host }} {{ hostvars[host].nebula_hostname }} {{ host }}
+          {% endfor %}
     - name: Install preflight tooling
       ansible.builtin.apt:
         name: [python3, qemu-system-x86, iproute2, iputils-ping, openvswitch-switch, iptables, kmod, util-linux]

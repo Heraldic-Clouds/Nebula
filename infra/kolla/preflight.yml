@@ -10,7 +10,7 @@
         fail_msg: Run write once, reboot hosts, then verify. Missing evidence blocks deployment.
     - name: Run host checks and retain report even on failure
       ansible.builtin.command:
-        argv: "{{ ['/usr/local/sbin/nebula-preflight', '--role', nebula_role, '--management-interface', network_interface, '--storage-mode', storage_mode, '--storage-path', '/var/lib/docker'] + (['--external-interface', neutron_external_interface] if nebula_role == 'control' else []) + (['--development-tcg'] if nebula_development_tcg | default(false) | bool else []) + nebula_peer_args }}"
+        argv: "{{ ['/usr/local/sbin/nebula-preflight', '--role', nebula_role, '--management-interface', network_interface, '--expected-hostname', nebula_hostname, '--management-address', ansible_host, '--storage-mode', storage_mode, '--storage-path', '/var/lib/docker'] + (['--external-interface', neutron_external_interface] if nebula_role == 'control' else []) + (['--development-tcg'] if nebula_development_tcg | default(false) | bool else []) + nebula_peer_args }}"
       register: preflight_result
       changed_when: storage_mode == 'write'
       failed_when: false

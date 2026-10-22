@@ -14,10 +14,21 @@ def render(hosts, template, output, *, management_interface, external_interface,
         raise ValueError("Cloud deployment requires one or three controllers and at least one compute")
     if len(controls) == 3 and not ha_vip:
         raise ValueError("Three controllers require an independently qualified VIP/LB; no VRRP over L3 is assumed")
+    names = {}
+    addresses = []
     for ident, host in hosts.items():
         if not re.fullmatch(r"[a-zA-Z0-9_]+", ident):
             raise ValueError("Unsafe inventory hostname")
+        hostname = ident.lower().replace("_", "-")
+        if not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", hostname):
+            raise ValueError("Hostnames must be valid DNS labels of at most 63 characters")
+        if host["role"] not in {"control", "compute"}:
+            raise ValueError("Unsupported host role")
+        names[ident] = hostname
         ipaddress.ip_address(host["address"])
+        addresses.append(str(ipaddress.ip_address(host["address"])))
+    if len(set(names.values())) != len(names) or len(set(addresses)) != len(addresses):
+        raise ValueError("Each host requires a unique hostname and management address")
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
     replacements = {"control": controls, "network": controls, "compute": computes, "monitoring": controls, "storage": [], "deployment": ["localhost ansible_connection=local"]}
@@ -38,6 +49,7 @@ def render(hosts, template, output, *, management_interface, external_interface,
         vars_ = {"ansible_host": host["address"], "ansible_user": user, "ansible_become": True,
             "ansible_ssh_private_key_file": str(Path(private_key).expanduser()),
             "nebula_role": host["role"], "network_interface": management_interface,
+            "nebula_hostname": names[name],
             "api_interface": management_interface, "tunnel_interface": management_interface,
             "neutron_external_interface": external_interface,
             "nebula_peer_args": [v for peer in hosts.values() if peer["address"] != host["address"] for v in ["--peer", peer["address"]]]}
